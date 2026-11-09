@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { CloudSun, ShieldCheck, Zap } from 'lucide-react'
 import { useSettings } from './application/useSettings'
 import { useSplashTimer } from './application/useSplashTimer'
+import { usePwaInstall } from './application/usePwaInstall'
 import { Header } from './components/Header'
+import { PwaGuide } from './components/PwaGuide'
 import { ReminderModal } from './components/ReminderModal'
 import { SettingsPanel } from './components/SettingsPanel'
 import { TimerHero } from './components/TimerHero'
@@ -16,10 +18,11 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [notice, setNotice] = useState('')
   const durationMs = settings.intervalMinutes * 60_000
+  const pwa = usePwaInstall()
 
   const handleRing = useCallback(() => {
     void playSound(settings.sound, settings.volume)
-    sendReminderNotification(settings.reminderTitle, settings.reminderMessage)
+    void sendReminderNotification(settings.reminderTitle, settings.reminderMessage)
     document.title = `💧 ${settings.reminderTitle}`
   }, [settings])
 
@@ -83,6 +86,15 @@ function App() {
         onReset={timer.reset}
         onSkip={timer.skip}
         onChooseInterval={chooseInterval}
+      />
+
+      <PwaGuide
+        canInstall={pwa.canInstall}
+        isInstalled={pwa.isInstalled}
+        isIos={pwa.isIos}
+        isOnline={pwa.isOnline}
+        isOfflineReady={pwa.isOfflineReady}
+        onInstall={pwa.install}
       />
 
       <section className="benefit-strip" aria-label="About Splash">

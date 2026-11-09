@@ -77,7 +77,7 @@ People who work for long stretches often lose track of time and benefit from a s
 2. Custom uploaded audio with size/type validation.
 3. Multiple named routines (face splash, hydrate, stretch, eye break).
 4. Daily history, streaks, and a small insights view.
-5. Installable PWA with offline shell and stronger background guidance.
+5. Installable PWA with offline shell and stronger background guidance. **Implemented.**
 6. Theme presets and custom accent color.
 7. Import/export preferences as JSON.
 8. More flexible snooze choices and escalation rules.
