@@ -1,15 +1,18 @@
 import { Pause, Play, RotateCcw, SkipForward, Sparkles } from 'lucide-react'
+import type { Routine, RoutineId } from '../domain/settings'
 import { formatDuration, type TimerSnapshot } from '../domain/timer'
 
 interface TimerHeroProps {
   snapshot: TimerSnapshot
   durationMs: number
-  intervalMinutes: number
+  routines: Routine[]
+  activeRoutine: Routine
   onStart: () => void
   onPause: () => void
   onReset: () => void
   onSkip: () => void
   onChooseInterval: (minutes: number) => void
+  onChooseRoutine: (routineId: RoutineId) => void
 }
 
 const PRESETS = [10, 15, 20, 30]
@@ -17,12 +20,14 @@ const PRESETS = [10, 15, 20, 30]
 export function TimerHero({
   snapshot,
   durationMs,
-  intervalMinutes,
+  routines,
+  activeRoutine,
   onStart,
   onPause,
   onReset,
   onSkip,
   onChooseInterval,
+  onChooseRoutine,
 }: TimerHeroProps) {
   const progress = Math.min(1, Math.max(0, snapshot.remainingMs / durationMs))
   const circumference = 2 * Math.PI * 138
@@ -30,14 +35,32 @@ export function TimerHero({
     ? new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit' }).format(snapshot.deadline)
     : 'Not scheduled'
   const isRunning = snapshot.status === 'running'
-  const statusLabel = snapshot.status === 'idle' ? 'Ready when you are' : snapshot.status === 'paused' ? 'Paused' : isRunning ? 'Flow in progress' : 'Splash time'
+  const statusLabel = snapshot.status === 'idle' ? `${activeRoutine.name} is ready` : snapshot.status === 'paused' ? 'Paused' : isRunning ? 'Flow in progress' : `${activeRoutine.name} time`
 
   return (
     <main className="hero" id="top">
       <section className="hero-copy" aria-labelledby="page-title">
         <span className="eyebrow"><Sparkles size={14} /> A tiny ritual for brighter focus</span>
-        <h1 id="page-title">Pause. Splash.<br /><em>Come back fresh.</em></h1>
-        <p className="hero-lede">A gentle nudge to step away, splash some water, and reset your day—one refreshing moment at a time.</p>
+        <h1 id="page-title">Pause. Reset.<br /><em>Come back fresh.</em></h1>
+        <p className="hero-lede">Choose a small ritual, set your rhythm, and let Splash gently bring you back to yourself.</p>
+
+        <div className="routine-picker" aria-label="Choose an active routine">
+          <span>Choose your reset</span>
+          <div className="routine-row">
+            {routines.map((routine) => (
+              <button
+                key={routine.id}
+                type="button"
+                className={activeRoutine.id === routine.id ? 'routine-pill active' : 'routine-pill'}
+                onClick={() => onChooseRoutine(routine.id)}
+                aria-pressed={activeRoutine.id === routine.id}
+              >
+                <span aria-hidden="true">{routine.symbol}</span>
+                {routine.name}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div className="interval-picker" aria-label="Quick interval selection">
           <span>Remind me every</span>
@@ -46,9 +69,9 @@ export function TimerHero({
               <button
                 key={minutes}
                 type="button"
-                className={intervalMinutes === minutes ? 'preset active' : 'preset'}
+                className={activeRoutine.intervalMinutes === minutes ? 'preset active' : 'preset'}
                 onClick={() => onChooseInterval(minutes)}
-                aria-pressed={intervalMinutes === minutes}
+                aria-pressed={activeRoutine.intervalMinutes === minutes}
               >
                 {minutes} min
               </button>
@@ -62,7 +85,7 @@ export function TimerHero({
         </div>
       </section>
 
-      <section className="timer-card" aria-label="Splash timer">
+      <section className="timer-card" aria-label={`${activeRoutine.name} timer`}>
         <div className="timer-card-glow" aria-hidden="true" />
         <div className="timer-topline">
           <span className={`status-dot ${isRunning ? 'live' : ''}`} aria-hidden="true" />
@@ -82,9 +105,9 @@ export function TimerHero({
             />
           </svg>
           <div className="timer-time" aria-live="off">
-            <span className="time-label">Next splash in</span>
+            <span className="time-label">Next {activeRoutine.name.toLowerCase()} in</span>
             <strong>{formatDuration(snapshot.remainingMs)}</strong>
-            <span className="time-meta">{intervalMinutes} minute rhythm</span>
+            <span className="time-meta">{activeRoutine.intervalMinutes} minute rhythm</span>
           </div>
           <span className="orbit-drop drop-one" aria-hidden="true" />
           <span className="orbit-drop drop-two" aria-hidden="true" />
@@ -98,14 +121,14 @@ export function TimerHero({
             aria-label={isRunning ? 'Pause timer' : snapshot.status === 'paused' ? 'Resume timer' : 'Start timer'}
           >
             {isRunning ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
-            {isRunning ? 'Pause' : snapshot.status === 'paused' ? 'Resume' : 'Start splashing'}
+            {isRunning ? 'Pause' : snapshot.status === 'paused' ? 'Resume' : `Start ${activeRoutine.name.toLowerCase()}`}
           </button>
           <button className="small-control" type="button" onClick={onReset} aria-label="Reset timer"><RotateCcw size={18} /></button>
           <button className="small-control" type="button" onClick={onSkip} aria-label="Skip to a new cycle"><SkipForward size={18} /></button>
         </div>
 
         <div className="next-reminder">
-          <span>Next reminder</span>
+          <span>Next {activeRoutine.name.toLowerCase()}</span>
           <strong>{nextTime}</strong>
         </div>
       </section>

@@ -1,6 +1,6 @@
 # Splash
 
-A calm, configurable React reminder for taking a quick water-splash break. The default rhythm is 15 minutes; timing, messages, notification behavior, sound, volume, and visual motion are configurable.
+A calm, configurable React reminder for taking restorative micro-breaks. It includes five named routines—Face splash, Scalp splash, Hydrate, Stretch, and Eye break—each with independently configurable timing, reminder copy, sound, and volume.
 
 Splash is also an installable PWA. Its application shell is cached for offline use, it includes mobile app icons, and foreground/background reminders use the installed service worker when notification permission is granted.
 
@@ -29,6 +29,8 @@ The app intentionally separates product rules from browser capabilities:
 - `src/components` — presentation components.
 
 The `SettingsRepository` and `TimerRepository` contracts are the seams for future REST/GraphQL-backed implementations. A backend adapter can sync local state without coupling network behavior to the UI.
+
+Settings storage is versioned. Existing single-routine preferences automatically migrate into the Face splash routine while the other templates receive their defaults.
 
 ## Browser behavior
 

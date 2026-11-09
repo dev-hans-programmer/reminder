@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { Bell, BellOff, Check, Play, SlidersHorizontal, Volume2, X } from 'lucide-react'
 import { useFocusTrap } from '../application/useFocusTrap'
-import { SOUND_OPTIONS, type SoundId, type SplashSettings } from '../domain/settings'
+import { getActiveRoutine, SOUND_OPTIONS, updateRoutine, type Routine, type SoundId, type SplashSettings } from '../domain/settings'
 import { getNotificationState, requestNotificationPermission, type NotificationState } from '../infrastructure/notificationService'
 
 interface SettingsPanelProps {
@@ -25,11 +25,12 @@ export function SettingsPanel({ open, settings, onClose, onSave, onPreviewSound 
   const panelRef = useRef<HTMLDivElement>(null)
   const stableClose = useCallback(() => onClose(), [onClose])
   useFocusTrap(panelRef, open, stableClose)
+  const activeRoutine = getActiveRoutine(draft)
 
   if (!open) return null
 
-  const update = <K extends keyof SplashSettings>(key: K, value: SplashSettings[K]) => {
-    setDraft((current) => ({ ...current, [key]: value }))
+  const updateRoutineField = <K extends keyof Omit<Routine, 'id' | 'symbol'>>(key: K, value: Routine[K]) => {
+    setDraft((current) => updateRoutine(current, current.activeRoutineId, { [key]: value }))
   }
 
   const enableNotifications = async () => setNotificationState(await requestNotificationPermission())
@@ -47,37 +48,58 @@ export function SettingsPanel({ open, settings, onClose, onSave, onPreviewSound 
         <div className="settings-header">
           <div>
             <span className="eyebrow"><SlidersHorizontal size={14} /> Make it yours</span>
-            <h2 id="settings-title">Your splash rhythm</h2>
+            <h2 id="settings-title">Your routine rhythm</h2>
           </div>
           <button className="icon-button" type="button" onClick={onClose} aria-label="Close settings"><X size={20} /></button>
         </div>
 
         <div className="settings-content">
           <section className="setting-group">
-            <div className="setting-label"><span>Reminder interval</span><strong>{draft.intervalMinutes} min</strong></div>
+            <div className="setting-label"><span>Active routine</span><strong>{activeRoutine.symbol} {activeRoutine.name}</strong></div>
+            <div className="settings-routine-grid">
+              {draft.routines.map((routine) => (
+                <button
+                  type="button"
+                  key={routine.id}
+                  className={draft.activeRoutineId === routine.id ? 'settings-routine active' : 'settings-routine'}
+                  onClick={() => setDraft((current) => ({ ...current, activeRoutineId: routine.id }))}
+                  aria-pressed={draft.activeRoutineId === routine.id}
+                >
+                  <span aria-hidden="true">{routine.symbol}</span>
+                  {routine.name}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="setting-group">
+            <div className="setting-label"><span>Reminder interval</span><strong>{activeRoutine.intervalMinutes} min</strong></div>
             <input
               className="range-input"
               type="range"
               min="1"
               max="60"
               step="1"
-              value={draft.intervalMinutes}
-              onChange={(event) => update('intervalMinutes', Number(event.target.value))}
+              value={activeRoutine.intervalMinutes}
+              onChange={(event) => updateRoutineField('intervalMinutes', Number(event.target.value))}
               aria-label="Reminder interval in minutes"
             />
             <div className="range-scale"><span>1 min</span><span>30 min</span><span>60 min</span></div>
             <label className="number-field">Custom interval
-              <input type="number" min="1" max="180" value={draft.intervalMinutes} onChange={(event) => update('intervalMinutes', Math.min(180, Math.max(1, Number(event.target.value))))} />
+              <input type="number" min="1" max="180" value={activeRoutine.intervalMinutes} onChange={(event) => updateRoutineField('intervalMinutes', Math.min(180, Math.max(1, Number(event.target.value))))} />
               <span>minutes</span>
             </label>
           </section>
 
           <section className="setting-group">
+            <label className="field-label">Routine name
+              <input type="text" maxLength={30} value={activeRoutine.name} onChange={(event) => updateRoutineField('name', event.target.value)} />
+            </label>
             <label className="field-label">Reminder title
-              <input type="text" maxLength={60} value={draft.reminderTitle} onChange={(event) => update('reminderTitle', event.target.value)} />
+              <input type="text" maxLength={60} value={activeRoutine.reminderTitle} onChange={(event) => updateRoutineField('reminderTitle', event.target.value)} />
             </label>
             <label className="field-label">Encouraging message
-              <textarea maxLength={160} rows={3} value={draft.reminderMessage} onChange={(event) => update('reminderMessage', event.target.value)} />
+              <textarea maxLength={160} rows={3} value={activeRoutine.reminderMessage} onChange={(event) => updateRoutineField('reminderMessage', event.target.value)} />
             </label>
           </section>
 
@@ -86,21 +108,21 @@ export function SettingsPanel({ open, settings, onClose, onSave, onPreviewSound 
             <div className="sound-grid">
               {SOUND_OPTIONS.map((sound) => (
                 <button
-                  className={draft.sound === sound ? 'sound-option selected' : 'sound-option'}
+                  className={activeRoutine.sound === sound ? 'sound-option selected' : 'sound-option'}
                   type="button"
                   key={sound}
-                  onClick={() => update('sound', sound)}
-                  aria-pressed={draft.sound === sound}
+                  onClick={() => updateRoutineField('sound', sound)}
+                  aria-pressed={activeRoutine.sound === sound}
                 >
-                  {draft.sound === sound && <Check size={14} />}
+                  {activeRoutine.sound === sound && <Check size={14} />}
                   {SOUND_LABELS[sound]}
                 </button>
               ))}
             </div>
             <div className="volume-row">
               <span>Volume</span>
-              <input type="range" min="0" max="1" step="0.05" value={draft.volume} onChange={(event) => update('volume', Number(event.target.value))} aria-label="Reminder volume" />
-              <button className="preview-button" type="button" disabled={draft.sound === 'off'} onClick={() => onPreviewSound(draft.sound, draft.volume)}><Play size={14} fill="currentColor" /> Preview</button>
+              <input type="range" min="0" max="1" step="0.05" value={activeRoutine.volume} onChange={(event) => updateRoutineField('volume', Number(event.target.value))} aria-label="Reminder volume" />
+              <button className="preview-button" type="button" disabled={activeRoutine.sound === 'off'} onClick={() => onPreviewSound(activeRoutine.sound, activeRoutine.volume)}><Play size={14} fill="currentColor" /> Preview</button>
             </div>
           </section>
 
@@ -112,7 +134,7 @@ export function SettingsPanel({ open, settings, onClose, onSave, onPreviewSound 
 
           <label className="toggle-row">
             <span><strong>Reduce visual motion</strong><small>Keep the water calm and still.</small></span>
-            <input type="checkbox" checked={draft.reduceMotion} onChange={(event) => update('reduceMotion', event.target.checked)} />
+            <input type="checkbox" checked={draft.reduceMotion} onChange={(event) => setDraft((current) => ({ ...current, reduceMotion: event.target.checked }))} />
           </label>
         </div>
 

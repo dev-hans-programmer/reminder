@@ -2,26 +2,27 @@ import type { SettingsRepository, TimerRepository } from '../application/contrac
 import { DEFAULT_SETTINGS, normalizeSettings, type SplashSettings } from '../domain/settings'
 import { createIdleTimer, type TimerSnapshot } from '../domain/timer'
 
-const SETTINGS_KEY = 'splash:settings:v1'
+const SETTINGS_KEY = 'splash:settings:v2'
+const LEGACY_SETTINGS_KEY = 'splash:settings:v1'
 const TIMER_KEY = 'splash:timer:v1'
 
 interface StoredValue<T> {
-  version: 1
+  version: number
   data: T
 }
 
-function read<T>(key: string): StoredValue<T> | null {
+function read<T>(key: string, version = 1): StoredValue<T> | null {
   try {
     const parsed = JSON.parse(localStorage.getItem(key) ?? 'null') as StoredValue<T> | null
-    return parsed?.version === 1 ? parsed : null
+    return parsed?.version === version ? parsed : null
   } catch {
     return null
   }
 }
 
-function write<T>(key: string, data: T) {
+function write<T>(key: string, data: T, version = 1) {
   try {
-    localStorage.setItem(key, JSON.stringify({ version: 1, data } satisfies StoredValue<T>))
+    localStorage.setItem(key, JSON.stringify({ version, data } satisfies StoredValue<T>))
   } catch {
     // The app remains usable when storage is unavailable or full.
   }
@@ -29,11 +30,12 @@ function write<T>(key: string, data: T) {
 
 export const localSettingsRepository: SettingsRepository = {
   load() {
-    const stored = read<Partial<SplashSettings>>(SETTINGS_KEY)
+    const stored = read<Partial<SplashSettings>>(SETTINGS_KEY, 2)
+      ?? read<Partial<SplashSettings>>(LEGACY_SETTINGS_KEY)
     return stored ? normalizeSettings(stored.data) : DEFAULT_SETTINGS
   },
   save(settings) {
-    write(SETTINGS_KEY, normalizeSettings(settings))
+    write(SETTINGS_KEY, normalizeSettings(settings), 2)
   },
 }
 

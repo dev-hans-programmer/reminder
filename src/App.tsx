@@ -8,8 +8,8 @@ import { PwaGuide } from './components/PwaGuide'
 import { ReminderModal } from './components/ReminderModal'
 import { SettingsPanel } from './components/SettingsPanel'
 import { TimerHero } from './components/TimerHero'
-import type { SplashSettings } from './domain/settings'
-import { playSound, unlockAudio } from './infrastructure/audioService'
+import { getActiveRoutine, updateRoutine, type RoutineId, type SplashSettings } from './domain/settings'
+import { playSound, startReminderSound, stopReminderSound, unlockAudio } from './infrastructure/audioService'
 import { localSettingsRepository, localTimerRepository } from './infrastructure/localRepository'
 import { sendReminderNotification } from './infrastructure/notificationService'
 
@@ -17,14 +17,15 @@ function App() {
   const { settings, updateSettings } = useSettings(localSettingsRepository)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [notice, setNotice] = useState('')
-  const durationMs = settings.intervalMinutes * 60_000
+  const activeRoutine = getActiveRoutine(settings)
+  const durationMs = activeRoutine.intervalMinutes * 60_000
   const pwa = usePwaInstall()
 
   const handleRing = useCallback(() => {
-    void playSound(settings.sound, settings.volume)
-    void sendReminderNotification(settings.reminderTitle, settings.reminderMessage)
-    document.title = `💧 ${settings.reminderTitle}`
-  }, [settings])
+    startReminderSound(activeRoutine.sound, activeRoutine.volume)
+    void sendReminderNotification(activeRoutine.reminderTitle, activeRoutine.reminderMessage)
+    document.title = `${activeRoutine.symbol} ${activeRoutine.reminderTitle}`
+  }, [activeRoutine])
 
   const timer = useSplashTimer({
     durationMs,
@@ -35,6 +36,14 @@ function App() {
 
   useEffect(() => {
     if (timer.snapshot.status !== 'ringing') document.title = 'Splash — your tiny reset ritual'
+  }, [timer.snapshot.status])
+
+  useEffect(() => {
+    if (timer.snapshot.status !== 'ringing') {
+      stopReminderSound()
+      return
+    }
+    return stopReminderSound
   }, [timer.snapshot.status])
 
   useEffect(() => {
@@ -56,18 +65,29 @@ function App() {
   }, [timer])
 
   const chooseInterval = useCallback((minutes: number) => {
-    updateSettings({ ...settings, intervalMinutes: minutes })
+    updateSettings(updateRoutine(settings, activeRoutine.id, { intervalMinutes: minutes }))
     timer.reset(minutes * 60_000)
     setNotice(`Reset to a ${minutes} minute rhythm`)
+  }, [activeRoutine.id, settings, timer, updateSettings])
+
+  const chooseRoutine = useCallback((routineId: RoutineId) => {
+    if (routineId === settings.activeRoutineId) return
+    const nextRoutine = settings.routines.find((routine) => routine.id === routineId)
+    if (!nextRoutine) return
+    updateSettings({ ...settings, activeRoutineId: routineId })
+    timer.reset(nextRoutine.intervalMinutes * 60_000)
+    setNotice(`${nextRoutine.name} routine is ready`)
   }, [settings, timer, updateSettings])
 
   const saveSettings = useCallback((next: SplashSettings) => {
-    const intervalChanged = next.intervalMinutes !== settings.intervalMinutes
+    const nextRoutine = getActiveRoutine(next)
+    const routineChanged = next.activeRoutineId !== settings.activeRoutineId
+    const intervalChanged = nextRoutine.intervalMinutes !== activeRoutine.intervalMinutes
     updateSettings(next)
-    if (intervalChanged) timer.reset(next.intervalMinutes * 60_000)
+    if (routineChanged || intervalChanged) timer.reset(nextRoutine.intervalMinutes * 60_000)
     setSettingsOpen(false)
-    setNotice(intervalChanged ? 'Saved — your new rhythm is ready' : 'Settings saved')
-  }, [settings.intervalMinutes, timer, updateSettings])
+    setNotice(routineChanged || intervalChanged ? `Saved — ${nextRoutine.name} is ready` : 'Settings saved')
+  }, [activeRoutine.intervalMinutes, settings.activeRoutineId, timer, updateSettings])
 
   const snoozeFiveMinutes = useCallback(() => snooze(5), [snooze])
 
@@ -80,12 +100,14 @@ function App() {
       <TimerHero
         snapshot={timer.snapshot}
         durationMs={durationMs}
-        intervalMinutes={settings.intervalMinutes}
+        routines={settings.routines}
+        activeRoutine={activeRoutine}
         onStart={start}
         onPause={timer.pause}
         onReset={timer.reset}
         onSkip={timer.skip}
         onChooseInterval={chooseInterval}
+        onChooseRoutine={chooseRoutine}
       />
 
       <PwaGuide
@@ -120,8 +142,9 @@ function App() {
 
       <ReminderModal
         open={timer.snapshot.status === 'ringing'}
-        title={settings.reminderTitle}
-        message={settings.reminderMessage}
+        title={activeRoutine.reminderTitle}
+        message={activeRoutine.reminderMessage}
+        symbol={activeRoutine.symbol}
         reduceMotion={settings.reduceMotion}
         onComplete={timer.complete}
         onSnooze={snoozeFiveMinutes}
