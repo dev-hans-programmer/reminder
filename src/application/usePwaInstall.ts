@@ -16,6 +16,7 @@ export function usePwaInstall() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [isOfflineReady, setIsOfflineReady] = useState(false)
   const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 
   useEffect(() => {
     const handlePrompt = (event: Event) => {

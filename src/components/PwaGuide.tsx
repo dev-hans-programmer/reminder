@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
-import { Bell, Check, ChevronDown, Download, ExternalLink, Smartphone, WifiOff } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { Bell, BellRing, Check, ChevronDown, Download, ExternalLink, Share2, Smartphone, SquarePlus, WifiOff, X } from 'lucide-react'
+import { useFocusTrap } from '../application/useFocusTrap'
 import { getNotificationState, requestNotificationPermission, sendTestNotification, type NotificationState } from '../infrastructure/notificationService'
 
 interface PwaGuideProps {
@@ -13,7 +15,11 @@ interface PwaGuideProps {
 
 export function PwaGuide({ canInstall, isInstalled, isIos, isOnline, isOfflineReady, onInstall }: PwaGuideProps) {
   const [expanded, setExpanded] = useState(false)
+  const [showInstallHelp, setShowInstallHelp] = useState(false)
   const [notificationState, setNotificationState] = useState<NotificationState>(() => getNotificationState())
+  const installDialogRef = useRef<HTMLDivElement>(null)
+  const closeInstallHelp = useCallback(() => setShowInstallHelp(false), [])
+  useFocusTrap(installDialogRef, showInstallHelp, closeInstallHelp)
   const notificationsReady = notificationState === 'granted'
 
   useEffect(() => {
@@ -31,9 +37,9 @@ export function PwaGuide({ canInstall, isInstalled, isIos, isOnline, isOfflineRe
   const install = async () => {
     if (canInstall) {
       const installed = await onInstall()
-      if (!installed) setExpanded(true)
+      if (!installed) setShowInstallHelp(true)
     } else {
-      setExpanded(true)
+      setShowInstallHelp(true)
     }
   }
 
@@ -64,7 +70,12 @@ export function PwaGuide({ canInstall, isInstalled, isIos, isOnline, isOfflineRe
       </div>
 
       <div className="pwa-actions">
-        {!isInstalled && <button className="primary-button" type="button" onClick={install}><Download size={18} /> Install app</button>}
+        {!isInstalled && (
+          <button className="primary-button" type="button" onClick={install}>
+            {canInstall ? <Download size={18} /> : <Smartphone size={18} />}
+            {canInstall ? 'Install app' : isIos ? 'Install on iPhone' : 'Show install steps'}
+          </button>
+        )}
         {isInstalled && notificationState === 'default' && <button className="primary-button" type="button" onClick={enableNotifications}><Bell size={18} /> Enable notifications</button>}
         {notificationsReady && <button className="secondary-button" type="button" onClick={() => void sendTestNotification()}><Bell size={17} /> Test notification</button>}
         <button className="guide-toggle" type="button" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded}>
@@ -86,6 +97,28 @@ export function PwaGuide({ canInstall, isInstalled, isIos, isOnline, isOfflineRe
           </div>
         </div>
       )}
+
+      {showInstallHelp && createPortal((
+        <div className="modal-backdrop install-help-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && closeInstallHelp()}>
+          <div className="install-help-modal" role="dialog" aria-modal="true" aria-labelledby="install-help-title" ref={installDialogRef}>
+            <button className="icon-button install-help-close" type="button" onClick={closeInstallHelp} aria-label="Close installation guide"><X size={19} /></button>
+            <span className="install-help-icon" aria-hidden="true"><Smartphone size={28} /></span>
+            <span className="eyebrow centered">Add Splash to your phone</span>
+            <h2 id="install-help-title">{isIos ? 'Install from Safari' : 'Install from your browser'}</h2>
+            <p className="install-help-intro">{isIos
+              ? 'Apple requires Home Screen apps to be installed from Safari’s Share menu.'
+              : 'Your browser has not offered its automatic installer. You can still add Splash from the browser menu.'}</p>
+
+            <ol className="install-help-steps">
+              <li><span>{isIos ? <Share2 size={18} /> : <ExternalLink size={18} />}</span><p><strong>{isIos ? 'Open Safari and tap Share' : 'Open in Chrome or Edge'}</strong><small>{isIos ? 'Use the square-with-arrow icon in Safari’s toolbar.' : 'Avoid an in-app browser such as Instagram or Gmail.'}</small></p></li>
+              <li><span><SquarePlus size={18} /></span><p><strong>Choose “Add to Home Screen”</strong><small>{isIos ? 'Scroll down in the Share sheet if it is not immediately visible.' : 'It may instead be labelled “Install app.”'}</small></p></li>
+              <li><span><BellRing size={18} /></span><p><strong>Launch Splash from its icon</strong><small>Return to this card and enable notifications inside the installed app.</small></p></li>
+            </ol>
+
+            <button className="primary-button install-help-done" type="button" onClick={closeInstallHelp}>Got it</button>
+          </div>
+        </div>
+      ), document.body)}
     </section>
   )
 }
